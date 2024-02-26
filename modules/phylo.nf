@@ -1,8 +1,10 @@
-include { clustalw; mafft } from './align.nf'
+include { clustalw; mafft; clustalo } from './align.nf'
+
+params.iqtreeArgs = ""
 
 process iqtree {
     memory '16 GB'
-    cpus 4
+    cpus 8
 
     conda "bioconda::iqtree"
     // publishDir "$params.outdir/", pattern: '*.treefile', saveAs: { t -> "${meta.aligner}.iqtree.nh" } , mode: 'copy', overwrite: true
@@ -16,7 +18,7 @@ process iqtree {
 
     script:
     """
-    iqtree2 -s $msa -nt ${task.cpus}
+    iqtree2 -s $msa -nt ${task.cpus} $params.iqtreeArgs
     """
 }
 
@@ -55,8 +57,16 @@ workflow buildPhylogeny {
             }
             | set { msa_mft }
 
+        multifasta
+            | clustalo
+            | map {
+                it -> [[aligner:"clustalo"], it]
+            }
+            | set { msa_clo }
+
+
         iqtree_out = msa_clw
-            .concat(msa_mft)
+            .concat(msa_mft, msa_clo)
             | iqtree
 
         iqtree_out.treefile
